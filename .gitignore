@@ -1,0 +1,7 @@
+node_modules/
+.lake/
+lake-packages/
+*.olean
+*.ilean
+*.log
+.DS_Store
