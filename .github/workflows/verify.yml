@@ -1,0 +1,52 @@
+name: verify-lean
+
+# push 后由 GitHub 托管的 Ubuntu 跑真正的 lake build + 公理审计，
+# 产出可直接贴进 PR 的 build.log / axioms.log。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install elan (Lean toolchain manager)
+        run: |
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Show versions
+        run: |
+          lean --version
+          lake --version
+
+      - name: Build (clean checkout, pinned toolchain + mathlib)
+        run: |
+          lake update 2>&1 | tee lake-update.log
+          lake build 2>&1 | tee lake-build.log
+          lake env lean JSP000301.lean 2>&1 | tee axioms.log
+
+      - name: Axiom audit (STANDARD_AXIOMS only)
+        run: |
+          grep -n "depends on axioms" axioms.log || true
+          if grep -q "sorryAx" axioms.log build.log lake-build.log 2>/dev/null; then
+            echo "ERROR: sorryAx detected"; exit 1
+          fi
+          if grep -nE '(^|[^[:alnum:]_])(sorry|admit)([^[:alnum:]_]|$)' JSP000301.lean; then
+            echo "ERROR: placeholder found in source"; exit 1
+          fi
+          echo "axiom audit passed"
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lean-verification-logs
+          path: |
+            lake-update.log
+            lake-build.log
+            axioms.log
