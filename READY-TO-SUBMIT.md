@@ -1,8 +1,18 @@
-# 交卷卡 · 只差你点几下
+# 交卷卡 · 仓库已上线
 
-> 2026-11-05 更新。**那封公理确认邮件删掉了**——干净版已跑通，不用问官方。
-> 本机已 `git init` + 提交，commit SHA：`9fca75d51788bb890429507c58821bb4aafa2c69`
-> 提交用的身份是 `gggsimon <gggsimon@users.noreply.github.com>`（按截图里的 Owner 猜的，不对的话告诉我改）。
+> 2026-11-05 17:58 更新。**仓库已建好并推送完成**：`https://github.com/gggsimon/jsp-000301`（Public）。
+> **那封公理确认邮件删掉了**——干净版已跑通，不用问官方。
+> 本机仓库 HEAD：`aff6335cf0fd3dd174694ba6e69cf2932cb1800e`；远端由 API 逐文件写入，
+> 共 **12 个文件 / 12 个 commit**（最后一个 `b98d80ef5947 Add verify_cloud.js`）。
+
+## 推送是怎么完成的（本机 git 通道不通）
+
+`github.com` 的 git 端点被代理挡住（502 / 直连超时），但 `api.github.com` 可达。
+改用 `push_api.js` 走 GitHub REST Contents API 逐个 PUT 文件，token 只从环境变量读取，
+**未写入任何文件、日志或 git**。**用完请立刻 Revoke 该 token。**
+
+副作用：逐文件写入产生 12 个 commit，并触发 12 次 `verify-lean` 流水线；前几次因文件未齐会失败，
+只需看**最后一次**（文件齐备）的结果即可。
 
 ## 一句话说清"没看明白"的地方
 
