@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: verify-lean-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,19 +29,38 @@ jobs:
           lake --version
 
       - name: Build (clean checkout, pinned toolchain + mathlib)
+        shell: bash
         run: |
+          set -euo pipefail
           lake update 2>&1 | tee lake-update.log
+          # mathlib 全量从源码编译会超时，先取官方预编译 olean 缓存
+          lake exe cache get 2>&1 | tee cache.log || true
           lake build 2>&1 | tee lake-build.log
           lake env lean JSP000301.lean 2>&1 | tee axioms.log
+          # 构建失败必须让 job 失败，禁止被 tee 吞掉退出码
+          test -s lake-build.log
 
       - name: Axiom audit (STANDARD_AXIOMS only)
+        shell: bash
         run: |
-          grep -n "depends on axioms" axioms.log || true
-          if grep -q "sorryAx" axioms.log build.log lake-build.log 2>/dev/null; then
-            echo "ERROR: sorryAx detected"; exit 1
+          set -euo pipefail
+          # 必须有公理输出，否则说明根本没编到 #print axioms
+          grep -n "depends on axioms" axioms.log
+          if grep -q "sorryAx\|native_decide.ax" axioms.log; then
+            echo "ERROR: non-standard axiom or sorryAx detected"; exit 1
           fi
           if grep -nE '(^|[^[:alnum:]_])(sorry|admit)([^[:alnum:]_]|$)' JSP000301.lean; then
             echo "ERROR: placeholder found in source"; exit 1
+          fi
+          # 逐条核对：只允许 propext / Classical.choice / Quot.sound
+          line=$(grep "depends on axioms" axioms.log | head -1)
+          echo "$line"
+          echo "$line" | grep -q "propext"
+          extra=$(echo "$line" | sed -E 's/.*\[(.*)\].*/\1/' | tr ',' '\n' \
+            | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' \
+            | grep -vE '^(propext|Classical\.choice|Quot\.sound)$' || true)
+          if [ -n "$extra" ]; then
+            echo "ERROR: extra axioms: $extra"; exit 1
           fi
           echo "axiom audit passed"
 
