@@ -1,0 +1,13 @@
+{
+  "name": "jsp-000301-verify",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloud Lean verification harness for JSP-000301 (no local Lean required)",
+  "scripts": {
+    "verify": "node verify_cloud.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "https-proxy-agent": "^7.0.6"
+  }
+}
