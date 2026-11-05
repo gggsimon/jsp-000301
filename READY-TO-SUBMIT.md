@@ -11,8 +11,21 @@
 改用 `push_api.js` 走 GitHub REST Contents API 逐个 PUT 文件，token 只从环境变量读取，
 **未写入任何文件、日志或 git**。**用完请立刻 Revoke 该 token。**
 
-副作用：逐文件写入产生 12 个 commit，并触发 12 次 `verify-lean` 流水线；前几次因文件未齐会失败，
-只需看**最后一次**（文件齐备）的结果即可。
+副作用：逐文件写入产生 12 个 commit，并触发 12 次 `verify-lean` 流水线。
+
+**⚠️ 第一次的 12 个绿标全部是假阳性**：`lakefile.toml` 只写了 `scope`，Lake 5.0 报
+`leanprover/mathlib: package not found on Reservoir`；而 `lake build 2>&1 | tee` 的管道
+吞掉了退出码，后面公理审计只 grep 了空日志就打印 "axiom audit passed"。
+这是「CI 绿 ≠ 编译过」的实证，已按用户红线修掉。
+
+**修复后真跑通**（run `42007298659`，2026-11-05 10:04 UTC）：
+- `Lean 4.33.1 / Lake 5.0.0`，`lakefile.toml` 改为 git 源 `leanprover-community/mathlib4 @ v4.33.1`；
+- 加 `lake exe cache get` 取官方预编译 olean（日志 `[8706/8707] Built JSP000301`）；
+- 加 `set -euo pipefail`、`test -s lake-build.log`、公理白名单逐条核对；
+- 日志实证：`'JSP000301.jsp_000301_counterexample' depends on axioms: [propext, Classical.choice, Quot.sound]`，
+  `axiom audit passed`，artifact `lean-verification-logs` 已上传。
+
+**结论**：pin 版本 v4.33.1 的 clean-checkout `lake build` 形式要件已补齐，公理三条干净。
 
 ## 一句话说清"没看明白"的地方
 
