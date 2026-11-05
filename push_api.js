@@ -63,25 +63,35 @@ function api(method, urlPath, body) {
     .trim().split('\n').filter(Boolean);
   console.log('files to upload:', files.length, '\n');
 
-  // 3. 逐个 PUT（首次会自动创建默认分支 main）
-  let ok = 0, fail = 0;
+  // 3. 逐个 PUT：文件已存在时带 sha 更新，内容无变化则跳过
+  let ok = 0, fail = 0, skip = 0;
   for (const f of files) {
     const abs = path.join(ROOT, f);
     if (!fs.existsSync(abs)) { console.log('SKIP (missing)', f); continue; }
     const content = fs.readFileSync(abs);
-    const res = await api('PUT', `/repos/${OWNER}/${REPO}/contents/${f}`, {
-      message: `Add ${f}`,
-      content: content.toString('base64')
-    });
+    const b64 = content.toString('base64');
+
+    const cur = await api('GET', `/repos/${OWNER}/${REPO}/contents/${f}`);
+    const sha = cur.status === 200 ? cur.body.sha : null;
+    if (sha && cur.body.content && cur.body.content.replace(/\s/g, '') === b64) {
+      skip++;
+      console.log('SAME', f);
+      continue;
+    }
+
+    const body = { message: sha ? `Update ${f}` : `Add ${f}`, content: b64 };
+    if (sha) body.sha = sha;
+    const res = await api('PUT', `/repos/${OWNER}/${REPO}/contents/${f}`, body);
     if (res.status === 201 || res.status === 200) {
       ok++;
-      console.log('OK  ', f, '| commit', String(res.body.commit && res.body.commit.sha || '').slice(0, 12));
+      console.log('OK  ', f, '|', sha ? 'updated' : 'created', '| commit',
+                  String(res.body.commit && res.body.commit.sha || '').slice(0, 12));
     } else {
       fail++;
       console.log('FAIL', f, res.status, res.body.message || '');
     }
   }
-  console.log(`\nDONE ok=${ok} fail=${fail}`);
+  console.log(`\nDONE ok=${ok} skip=${skip} fail=${fail}`);
 
   // 4. 回读确认
   const tree = await api('GET', `/repos/${OWNER}/${REPO}/git/trees/HEAD?recursive=1`);
