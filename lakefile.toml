@@ -1,0 +1,11 @@
+name = "jsp000301"
+version = "0.1.0"
+defaultTargets = ["JSP000301"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover"
+
+[[lean_lib]]
+name = "JSP000301"
+roots = ["JSP000301"]
